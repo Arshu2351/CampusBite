@@ -1,0 +1,78 @@
+// Prisma Schema for CampusBite - Canteen Pre-Order System
+// Database: PostgreSQL
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Order workflow status enum
+enum OrderStatus {
+  PLACED
+  PREPARING
+  READY
+  COLLECTED
+  CANCELLED
+}
+
+// Model: MenuItem
+// Represents food and beverage items available in the canteen
+model MenuItem {
+  id          Int         @id @default(autoincrement())
+  name        String      @db.VarChar(100)
+  description String?     @db.Text
+  price       Decimal     @db.Decimal(10, 2)
+  isAvailable Boolean     @default(true)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  // 1-to-many relationship with OrderItem
+  // A menu item can appear in multiple order items over time
+  orderItems  OrderItem[]
+
+  @@map("menu_items")
+}
+
+// Model: Order
+// Represents an order placed by a student
+model Order {
+  id          Int         @id @default(autoincrement())
+  studentName String      @db.VarChar(100)
+  studentId   String      @db.VarChar(50)
+  pickupTime  String      @db.VarChar(50)
+  status      OrderStatus @default(PLACED)
+  totalAmount Decimal     @db.Decimal(10, 2)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  // 1-to-many relationship with OrderItem
+  // An order consists of one or more line items
+  // onDelete: Cascade ensures deleting an order removes its line items
+  orderItems  OrderItem[]
+
+  @@map("orders")
+}
+
+// Model: OrderItem
+// Join/Line-item table between Order and MenuItem
+// Stores a historical snapshot of unitPrice at the time order was placed
+model OrderItem {
+  id         Int      @id @default(autoincrement())
+  orderId    Int
+  menuItemId Int
+  quantity   Int
+  unitPrice  Decimal  @db.Decimal(10, 2)
+
+  // Foreign key relationships
+  order      Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  // Restrict onDelete preserves historical orders if menu item exists
+  menuItem   MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Restrict)
+
+  @@index([orderId])
+  @@index([menuItemId])
+  @@map("order_items")
+}
